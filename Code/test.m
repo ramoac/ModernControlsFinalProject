@@ -43,9 +43,8 @@ A = [0 0 1 0;
      0  mp*g*l*Jr/Jt    -mp*l*r*br/Jt   -Jp*bp/Jt];
 %
 B = [0; 0; Jp/Jt; mp*l*r/Jt];
-C = eye(2,4);
-D = zeros(2,1);
-
+C = [0 1 0 0];
+D = 0;
 % 
 % Add actuator dynamics
 A(3,3) = A(3,3) - km*km/Rm*B(3);
@@ -56,35 +55,32 @@ A = [0 0 1 0;
      0  mp*g*l*Jr/Jt      A(4,3)   -Jp*bp/Jt];
 B = km * B / Rm;
 
-[num, den]=ss2tf(A,B,C,D);
-G=tf(num,den);
-
 % Define the performance criteria and objective function
 % In this example, let's consider minimizing settling time, overshoot,
 % steady-state error, and input signal
 % You can adjust the weights according to the importance of each criterion
-weights = [0, 1, 0, 0.1, 1];
+weights = [50, 1, 0, 0.1, 1];
 
 % Define the ABC algorithm parameters
-maxIterations = 70;  % Maximum number of iterations
+maxIterations = 10;  % Maximum number of iterations
 numEmployedBees = 50; % Number of employed bees
 numOnlookerBees = 50; % Number of onlooker bees
 maxTrials = 5;         % Maximum number of trials for a scout bee
 
 % Define the PID controller parameters search ranges
 % These ranges may need adjustment depending on the specific problem
-q11Range = [0.1, 10]; %rotary arm angle 
-q22Range = [0.1, 10]; %pendulum angle
-q33Range = [0.1, 10]; % rotary arm velocity
-q44Range = [0.1, 10]; %pendulum velocity
-rRange = [0.01, 1];
+q11Range = [0.1, 50]; %rotary arm angle 
+q22Range = [0.1, 50]; %pendulum angle
+q33Range = [0.1, 50]; % rotary arm velocity
+q44Range = [0.1, 50]; %pendulum velocity
+rRange = [1, 10];
 
 % Initialize the best solution
 bestSolution = [];
 bestFitness = Inf;
 
 % Initialize the population of employed bees
-employedBees = initializeBees(numEmployedBees, q11Range, q22Range, q33Range, q44Range, rRange, G, t, weights);
+employedBees = initializeBees(numEmployedBees, q11Range, q22Range, q33Range, q44Range, rRange, A, B, C, D, t, weights);
 
 % Define the stagnation threshold
 stagnationThreshold = 5; % Number of iterations without improvement to detect stagnation
@@ -101,7 +97,7 @@ for iteration = 1:maxIterations
 
         % Evaluate the neighbor solution fitness
         employedBees(i).neighborSolution = neighborSolution;
-        employedBees(i).neighborFitness = evaluateFitness(neighborSolution, G, t, weights);
+        employedBees(i).neighborFitness = evaluateFitness(neighborSolution, A, B, C, D, t, weights);
 
         % Compare the neighbor solution with the current solution
         if employedBees(i).neighborFitness < employedBees(i).fitness
@@ -125,7 +121,7 @@ for iteration = 1:maxIterations
 
         % Evaluate the neighbor solution fitness
         onlookerBees(i).neighborSolution = neighborSolution;
-        onlookerBees(i).neighborFitness = evaluateFitness(neighborSolution, G, t, weights);
+        onlookerBees(i).neighborFitness = evaluateFitness(neighborSolution, A, B, C, D, t, weights);
 
         % Compare the neighbor solution with the current solution
         if onlookerBees(i).neighborFitness < onlookerBees(i).fitness
@@ -145,7 +141,7 @@ for iteration = 1:maxIterations
         if employedBees(i).trial >= maxTrials
             % Generate a new random solution for the scout bee
             employedBees(i).solution = generateRandomSolution(q11Range, q22Range, q33Range, q44Range, rRange);
-            employedBees(i).fitness = evaluateFitness(employedBees(i).solution, G, t, weights);
+            employedBees(i).fitness = evaluateFitness(employedBees(i).solution, A, B, C, D, t, weights);
             employedBees(i).trial = 0; % Reset the trial counter
         end
     end
@@ -168,7 +164,7 @@ for iteration = 1:maxIterations
     % If stagnation is detected, perturb the best solution
     if stagnationCounter >= stagnationThreshold
         bestSolution = perturbSolution(bestSolution, q11Range, q22Range, q33Range, q44Range, rRange);
-        bestFitness = evaluateFitness(bestSolution, G, t, weights);
+        bestFitness = evaluateFitness(bestSolution, A, B, C, D, t, weights);
         stagnationCounter = 0; % Reset the stagnation counter
     end
 
@@ -181,25 +177,35 @@ for iteration = 1:maxIterations
 		', q44 = ', num2str(bestSolution(4)), ', r = ', num2str(bestSolution(5)), ...
         '], Best Fitness = ', num2str(bestFitness)]);
 
-    bobSolution(iteration,1:3)=bestSolution;
+    bobSolution(iteration,1:5)=bestSolution;
     bobFitness(iteration)=bestFitness;
 end
 
-% Apply the optimized PID controller to the system
-Kp=0; Ki=0; Kd=0;
-while(Kp==0 && Ki==0 && Kd==0)
+% Apply the optimized LQR controller to the system
+Q = diag([0.1,0.1,0.1,0.1]); R=1;
+
+%Omar: This is an arbitrariy condition just to test code. May change if it doesn't work
+while(Q(1,1)==0.1 && Q(2,2)==0.1 && Q(3,3)==0.1 && Q(4,4)==0.1 && R==1)
     [minFit, itr]=min(bobFitness);
-    Kp = bobSolution(itr,1);
-    Ki = bobSolution(itr,2);
-    Kd = bobSolution(itr,3);
-    if(Kp==0 && Ki==0 && Kd==0)
+    Q(1,1) = bobSolution(itr,1);
+    Q(2,2) = bobSolution(itr,2);
+    Q(3,3) = bobSolution(itr,3);
+    Q(4,4) = bobSolution(itr,4);
+    R = bobSolution(itr,5);
+    % Omar: This is an arbitrariy condition just to test code. May change
+    % if it doesn't work
+    if(Q(1,1)==0 && Q(2,2)==0 && Q(3,3)==0 && Q(4,4)==0 && R==0)
         bobFitness(itr)=Inf;
     end
 end
 
 controller = lqr(A, B, Q, R);
-sysClosedLoop = feedback(controller * G, 1);
-sysClosedLoopInput = feedback(controller, G);
+[sysnum,sysden] = ss2tf(A-B*controller,B,C,D);
+G=tf(sysnum,sysden);
+sysClosedLoop = feedback(G, 1);
+sysClosedLoopInput = feedback(1, G);
+y = step(sysClosedLoop, t);
+U = step(sysClosedLoopInput, t);
 
 figure(1);
 yout=step(sysClosedLoop, t);
@@ -224,5 +230,5 @@ xlabel('iterations')
 ylabel('fitness')
 grid on; grid minor
 
-save('optimalValues.mat','Kp','Ki','Kd');
-disp('Optimal Solution Saved!');
+%save('optimalValues.mat','Q(1,1)','Q(2,2)','Q(3,3)','Q(4,4)','R');
+%disp('Optimal Solution Saved!');

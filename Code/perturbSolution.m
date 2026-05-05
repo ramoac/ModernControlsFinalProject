@@ -22,5 +22,5 @@ function perturbedSolution = perturbSolution(solution, q11Range, q22Range, q33Ra
 	preturbedr = clamp(preturbedr, rRange);
 
     % Create the perturbed solution
-    perturbedSolution = [preturbedq11, perturbedq22, perturbedq33, preturbedq44, preturbedr];
+    perturbedSolution = [perturbedq11, perturbedq22, perturbedq33, preturbedq44, preturbedr];
 end
