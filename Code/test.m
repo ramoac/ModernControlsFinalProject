@@ -1,6 +1,6 @@
 clear; clc; close all;
 
-t=0:0.01:5;
+t=0:0.01:10;
 
 %% Motor
 % Resistance
@@ -59,7 +59,7 @@ B = km * B / Rm;
 % In this example, let's consider minimizing settling time, overshoot,
 % steady-state error, and input signal
 % You can adjust the weights according to the importance of each criterion
-weights = [50, 1, 0, 0.1, 1];
+weights = [0.25, 0.25, 0.25, 0, 0.25];
 
 % Define the ABC algorithm parameters
 maxIterations = 10;  % Maximum number of iterations
@@ -182,48 +182,54 @@ for iteration = 1:maxIterations
 end
 
 % Apply the optimized LQR controller to the system
-Q = diag([0.1,0.1,0.1,0.1]); R=1;
+Q = diag([0,0,0,0]); R=1;
 
-%Omar: This is an arbitrariy condition just to test code. May change if it doesn't work
-while(Q(1,1)==0.1 && Q(2,2)==0.1 && Q(3,3)==0.1 && Q(4,4)==0.1 && R==1)
+%Omar: This is an arbitrar0y condition just to test code. May change if it doesn't work
+while(Q(1,1)==0 && Q(2,2)==0 && Q(3,3)==0 && Q(4,4)==0 && R==1)
     [minFit, itr]=min(bobFitness);
     Q(1,1) = bobSolution(itr,1);
     Q(2,2) = bobSolution(itr,2);
     Q(3,3) = bobSolution(itr,3);
     Q(4,4) = bobSolution(itr,4);
     R = bobSolution(itr,5);
-    % Omar: This is an arbitrariy condition just to test code. May change
+    % Omar: This is an arbitrary condition just to test code. May change
     % if it doesn't work
     if(Q(1,1)==0 && Q(2,2)==0 && Q(3,3)==0 && Q(4,4)==0 && R==0)
         bobFitness(itr)=Inf;
     end
 end
 
-controller = lqr(A, B, Q, R);
-[sysnum,sysden] = ss2tf(A-B*controller,B,C,D);
-G=tf(sysnum,sysden);
-sysClosedLoop = feedback(G, 1);
-sysClosedLoopInput = feedback(1, G);
-y = step(sysClosedLoop, t);
-U = step(sysClosedLoopInput, t);
+controller = lqr(A,B,Q,R);
+simIn = Simulink.SimulationInput('SystemDiagram');
+simIn = setVariable(simIn,'k',controller);
+out = sim(simIn);
+Pang = out.yout{1}.Values.Data;
+Minp = out.yout{2}.Values.Data;
+Rang = out.yout{3}.Values.Data;
+tim = out.tout;
 
 figure(1);
-yout=step(sysClosedLoop, t);
-plot(t,yout,'-r', 'LineWidth', 2);
-title('Step Response of the System \theta(t)');
+plot(tim,Rang,'-r', 'LineWidth', 2);
+title('Step Response of the System \alpha(t)');
 xlabel('time (s)');
-ylabel('angle (rad)');
+ylabel('angle (deg)');
 grid on; grid minor;
 
 figure(2);
-uout=step(sysClosedLoopInput, t);
-plot(t,uout*0.01,'-k', 'LineWidth', 2); % 0.01 is radiu, T=rF
+plot(tim,Minp,'-k', 'LineWidth', 2); % 0.01 is radiu, T=rF
 title('Input Signal of Plant u(t)');
 xlabel('time (s)');
 ylabel('magnitude');
 grid on; grid minor;
 
-figure(3)
+figure(3);
+plot(tim,Pang,'-b','LineWidth', 2);
+title('Step Response of the System \theta(t)');
+xlabel('time (s)');
+ylabel('angle (deg)');
+grid on; grid minor;
+
+figure(4)
 plot(bobFitness,'-r')
 title('Fitness of ABC')
 xlabel('iterations')

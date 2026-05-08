@@ -4,24 +4,26 @@ function fitness = evaluateFitness(solution, A, B, C, D, t, weights)
     R = solution(5);
     
     controller = lqr(A,B,Q,R);
-    [num,den] = ss2tf(A-B*controller,B,C,D);
-    G=tf(num,den);
-    sysClosedLoop = feedback(G, 1);
-    sysClosedLoopInput = feedback(1, G);
-    y = step(sysClosedLoop, t);
-    U = step(sysClosedLoopInput, t);
+    simIn = Simulink.SimulationInput('SystemDiagram');
+    simIn = setVariable(simIn,'k',controller);
+    out = sim(simIn);
+    Pang = out.yout{1}.Values.Data;
+    Minp = out.yout{2}.Values.Data;
+    Rang = out.yout{3}.Values.Data;
+    tim = out.tout;
+    index = size(tim,1);
+    settlingTime = 4;
+
+        while ((Rang(index)>=0.98*30) && (Rang(index)<=1.02*30))
+            index=index-1;
+            settlingTime = tim(index);
+        end
     
-    if y(end)>=0.98
-        idxTime=find(y > 0.98, 1);
-        settlingTime = t(idxTime);
-    else
-        settlingTime=t(end);
-    end
-    overshoot = max(y) - 1;
-    steadyStateError = abs(1-y(end));
-    inputSignal = max(abs(U));
+    overshoot = max(Rang) - 1;
+    steadyStateError = abs(30-Rang(end));
+    inputSignal = max(Minp);
     % inputSignal=0;
-    error=sum(abs(t'.*(1-y)));
+    error=sum(abs(tim.*(30-Rang)));
     % error=0;
     
     fitness = weights(1) * settlingTime + weights(2) * overshoot + ...
