@@ -1,6 +1,6 @@
 clear; clc; close all;
 
-t=0:0.01:10;
+t=0:0.01:4;
 
 %% Motor
 % Resistance
@@ -56,10 +56,9 @@ A = [0 0 1 0;
 B = km * B / Rm;
 
 % Define the performance criteria and objective function
-% In this example, let's consider minimizing settling time, overshoot,
-% steady-state error, and input signal
 % You can adjust the weights according to the importance of each criterion
-weights = [0.25, 0.25, 0.25, 0, 0.25];
+% [SettlingTime, Overshoot, SteadyStateError, Input Signal, Error]
+weights = [10, 1, 1, 0, 0];
 
 % Define the ABC algorithm parameters
 maxIterations = 10;  % Maximum number of iterations
@@ -206,7 +205,7 @@ out = sim(simIn);
 Pang = out.yout{1}.Values.Data;
 Minp = out.yout{2}.Values.Data;
 Rang = out.yout{3}.Values.Data;
-tim = out.tout;
+tim = out.yout{3}.Values.Time;
 
 figure(1);
 plot(tim,Rang,'-r', 'LineWidth', 2);
@@ -235,6 +234,8 @@ title('Fitness of ABC')
 xlabel('iterations')
 ylabel('fitness')
 grid on; grid minor
+
+sol = [Q(1,1),Q(2,2),Q(3,3),Q(4,4),R]
 
 %save('optimalValues.mat','Q(1,1)','Q(2,2)','Q(3,3)','Q(4,4)','R');
 %disp('Optimal Solution Saved!');
